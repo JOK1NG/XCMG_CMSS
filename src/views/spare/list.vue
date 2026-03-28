@@ -16,18 +16,6 @@
           />
         </el-form-item>
 
-        <el-form-item label="库存状态">
-          <el-select
-              v-model="queryForm.stockStatus"
-              placeholder="请选择状态"
-              clearable
-              style="width: 180px"
-          >
-            <el-option label="正常" value="正常" />
-            <el-option label="低库存预警" value="低库存预警" />
-          </el-select>
-        </el-form-item>
-
         <el-form-item label="供应商">
           <el-select
               v-model="queryForm.supplier"
@@ -57,11 +45,11 @@
           <el-button>导出</el-button>
         </div>
         <div class="toolbar-right">
-          <span class="toolbar-tip">共 {{ tableData.length }} 条备件记录</span>
+          <span class="toolbar-tip">共 {{ total }} 条备件记录</span>
         </div>
       </div>
 
-      <el-table :data="tableData" border stripe style="width: 100%">
+      <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
         <el-table-column prop="spareCode" label="备件编号" min-width="150" />
         <el-table-column prop="spareName" label="备件名称" min-width="180" />
         <el-table-column prop="spec" label="规格型号" min-width="140" />
@@ -74,8 +62,8 @@
 
         <el-table-column label="库存状态" min-width="130">
           <template #default="{ row }">
-            <el-tag :type="getStockTagType(row.stockStatus)">
-              {{ row.stockStatus }}
+            <el-tag :type="getStockTagType(getStockStatus(row))">
+              {{ getStockStatus(row) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -93,11 +81,14 @@
 
       <div class="pagination-wrapper">
         <el-pagination
+            v-model:current-page="queryForm.pageNum"
+            v-model:page-size="queryForm.pageSize"
             background
-            layout="total, prev, pager, next, jumper"
-            :total="tableData.length"
-            :page-size="10"
-            :current-page="1"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+            :page-sizes="[10, 20, 50]"
+            @size-change="handleSizeChange"
+            @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -105,30 +96,14 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
+import { getSparePage, type SpareItem } from '@/api/spare'
 
-interface SpareItem {
-  id: number
-  spareCode: string
-  spareName: string
-  spec: string
-  unit: string
-  stockQty: number
-  warningQty: number
-  price: string
-  supplierName: string
-  location: string
-  stockStatus: string
-}
+const DEFAULT_PAGE_SIZE = 10
 
-const queryForm = reactive({
-  keyword: '',
-  stockStatus: '',
-  supplier: '',
-})
-
-const tableData = ref<SpareItem[]>([
+/** 接口不可用时兜底展示，避免白屏 */
+const FALLBACK_ROWS: SpareItem[] = [
   {
     id: 1,
     spareCode: 'SP-0001',
@@ -140,7 +115,6 @@ const tableData = ref<SpareItem[]>([
     price: '¥680',
     supplierName: '洛阳轴承',
     location: 'A架1层',
-    stockStatus: '低库存预警',
   },
   {
     id: 2,
@@ -153,7 +127,6 @@ const tableData = ref<SpareItem[]>([
     price: '¥95',
     supplierName: '西门子工业',
     location: 'B架2层',
-    stockStatus: '正常',
   },
   {
     id: 3,
@@ -166,7 +139,6 @@ const tableData = ref<SpareItem[]>([
     price: '¥1,250',
     supplierName: '西门子工业',
     location: 'C架1层',
-    stockStatus: '低库存预警',
   },
   {
     id: 4,
@@ -179,9 +151,23 @@ const tableData = ref<SpareItem[]>([
     price: '¥160',
     supplierName: '阿特拉斯',
     location: 'D架3层',
-    stockStatus: '正常',
   },
-])
+]
+
+const queryForm = reactive({
+  keyword: '',
+  supplier: '',
+  pageNum: 1,
+  pageSize: DEFAULT_PAGE_SIZE,
+})
+
+const tableData = ref<SpareItem[]>([])
+const total = ref(0)
+const loading = ref(false)
+
+const getStockStatus = (row: Pick<SpareItem, 'stockQty' | 'warningQty'>) => {
+  return row.stockQty <= row.warningQty ? '低库存预警' : '正常'
+}
 
 const getStockTagType = (status: string) => {
   switch (status) {
@@ -194,73 +180,50 @@ const getStockTagType = (status: string) => {
   }
 }
 
+const loadData = async () => {
+  loading.value = true
+  try {
+    // 备注：stockStatus 是前端根据库存数量计算的展示字段，不参与后端分页查询，避免分页后前端过滤导致总数失真。
+    const data = await getSparePage({
+      pageNum: queryForm.pageNum,
+      pageSize: queryForm.pageSize,
+      keyword: queryForm.keyword || undefined,
+      supplier: queryForm.supplier || undefined,
+    })
+    tableData.value = Array.isArray(data.list) ? data.list : []
+    total.value = typeof data.total === 'number' ? data.total : 0
+  } catch {
+    queryForm.pageNum = 1
+    tableData.value = [...FALLBACK_ROWS]
+    total.value = FALLBACK_ROWS.length
+  } finally {
+    loading.value = false
+  }
+}
+
 const handleSearch = () => {
-  console.log('查询条件：', queryForm)
+  queryForm.pageNum = 1
+  loadData()
 }
 
 const handleReset = () => {
   queryForm.keyword = ''
-  queryForm.stockStatus = ''
   queryForm.supplier = ''
+  queryForm.pageNum = 1
+  queryForm.pageSize = DEFAULT_PAGE_SIZE
+  loadData()
 }
+
+const handlePageChange = () => {
+  loadData()
+}
+
+const handleSizeChange = () => {
+  queryForm.pageNum = 1
+  loadData()
+}
+
+onMounted(() => {
+  loadData()
+})
 </script>
-
-<style scoped>
-.page-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  color: #303133;
-}
-
-.page-desc {
-  margin: 8px 0 0;
-  font-size: 14px;
-  color: #909399;
-}
-
-.search-card,
-.table-card {
-  border-radius: 12px;
-}
-
-.search-form {
-  margin-bottom: -18px;
-}
-
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.toolbar-left {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.toolbar-tip {
-  font-size: 14px;
-  color: #909399;
-}
-
-.pagination-wrapper {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 20px;
-}
-</style>
