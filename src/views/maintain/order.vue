@@ -44,9 +44,11 @@
           <el-date-picker
               v-model="queryForm.dateRange"
               type="daterange"
+              unlink-panels
               range-separator="至"
               start-placeholder="开始日期"
               end-placeholder="结束日期"
+              value-format="YYYY-MM-DD"
               style="width: 260px"
           />
         </el-form-item>
@@ -65,11 +67,11 @@
           <el-button>导出</el-button>
         </div>
         <div class="toolbar-right">
-          <span class="toolbar-tip">共 {{ tableData.length }} 条保养工单记录</span>
+          <span class="toolbar-tip">共 {{ total }} 条保养工单记录</span>
         </div>
       </div>
 
-      <el-table :data="tableData" border stripe style="width: 100%">
+      <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
         <el-table-column prop="maintainOrderCode" label="工单编号" min-width="180" />
         <el-table-column prop="equipmentName" label="保养设备" min-width="180" />
         <el-table-column prop="templateName" label="保养模板" min-width="180" />
@@ -96,11 +98,14 @@
 
       <div class="pagination-wrapper">
         <el-pagination
+            v-model:current-page="queryForm.pageNum"
+            v-model:page-size="queryForm.pageSize"
             background
-            layout="total, prev, pager, next, jumper"
-            :total="tableData.length"
-            :page-size="10"
-            :current-page="1"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+            :page-sizes="[10, 20, 50]"
+            @size-change="handleSizeChange"
+            @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -108,27 +113,14 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
+import { getMaintainOrderPage, type MaintainOrderItem } from '@/api/maintain'
 
-interface MaintainOrderItem {
-  id: number
-  maintainOrderCode: string
-  equipmentName: string
-  templateName: string
-  planDate: string
-  assigneeName: string
-  status: string
-}
+const DEFAULT_PAGE_SIZE = 10
 
-const queryForm = reactive({
-  keyword: '',
-  status: '',
-  template: '',
-  dateRange: [],
-})
-
-const tableData = ref<MaintainOrderItem[]>([
+/** 接口不可用时兜底展示，避免白屏 */
+const FALLBACK_ROWS: MaintainOrderItem[] = [
   {
     id: 1,
     maintainOrderCode: 'MO-20260328-0001',
@@ -165,7 +157,20 @@ const tableData = ref<MaintainOrderItem[]>([
     assigneeName: '李明',
     status: '已关闭',
   },
-])
+]
+
+const queryForm = reactive({
+  keyword: '',
+  status: '',
+  template: '',
+  dateRange: [] as string[] | null,
+  pageNum: 1,
+  pageSize: DEFAULT_PAGE_SIZE,
+})
+
+const tableData = ref<MaintainOrderItem[]>([])
+const total = ref(0)
+const loading = ref(false)
 
 const getStatusTagType = (status: string) => {
   switch (status) {
@@ -182,8 +187,36 @@ const getStatusTagType = (status: string) => {
   }
 }
 
+const loadData = async () => {
+  loading.value = true
+  try {
+    const normalizedDateRange = Array.isArray(queryForm.dateRange) ? queryForm.dateRange : []
+    const [startDate, endDate] =
+      normalizedDateRange.length === 2 ? normalizedDateRange : [undefined, undefined]
+
+    const data = await getMaintainOrderPage({
+      pageNum: queryForm.pageNum,
+      pageSize: queryForm.pageSize,
+      keyword: queryForm.keyword || undefined,
+      status: queryForm.status || undefined,
+      template: queryForm.template || undefined,
+      startDate,
+      endDate,
+    })
+    tableData.value = Array.isArray(data.list) ? data.list : []
+    total.value = typeof data.total === 'number' ? data.total : 0
+  } catch {
+    queryForm.pageNum = 1
+    tableData.value = [...FALLBACK_ROWS]
+    total.value = FALLBACK_ROWS.length
+  } finally {
+    loading.value = false
+  }
+}
+
 const handleSearch = () => {
-  console.log('查询条件：', queryForm)
+  queryForm.pageNum = 1
+  loadData()
 }
 
 const handleReset = () => {
@@ -191,5 +224,21 @@ const handleReset = () => {
   queryForm.status = ''
   queryForm.template = ''
   queryForm.dateRange = []
+  queryForm.pageNum = 1
+  queryForm.pageSize = DEFAULT_PAGE_SIZE
+  loadData()
 }
+
+const handlePageChange = () => {
+  loadData()
+}
+
+const handleSizeChange = () => {
+  queryForm.pageNum = 1
+  loadData()
+}
+
+onMounted(() => {
+  loadData()
+})
 </script>

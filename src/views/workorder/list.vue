@@ -184,7 +184,7 @@ const queryForm = reactive({
   keyword: '',
   status: undefined as number | undefined,
   level: undefined as number | undefined,
-  dateRange: [] as string[],
+  dateRange: [] as string[] | null,
   pageNum: 1,
   pageSize: DEFAULT_PAGE_SIZE,
 })
@@ -258,11 +258,12 @@ const getLevelTagType = (level: number) => {
 }
 
 const loadData = async () => {
-  const [startDate, endDate] =
-    queryForm.dateRange.length === 2 ? queryForm.dateRange : [undefined, undefined]
-
   loading.value = true
   try {
+    const normalizedDateRange = Array.isArray(queryForm.dateRange) ? queryForm.dateRange : []
+    const [startDate, endDate] =
+      normalizedDateRange.length === 2 ? normalizedDateRange : [undefined, undefined]
+
     const data = await getWorkOrderPage({
       pageNum: queryForm.pageNum,
       pageSize: queryForm.pageSize,
