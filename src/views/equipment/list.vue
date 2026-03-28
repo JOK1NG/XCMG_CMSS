@@ -71,11 +71,11 @@
           <el-button>导出</el-button>
         </div>
         <div class="toolbar-right">
-          <span class="toolbar-tip">共 {{ tableData.length }} 条设备记录</span>
+          <span class="toolbar-tip">共 {{ total }} 条设备记录</span>
         </div>
       </div>
 
-      <el-table :data="tableData" border stripe style="width: 100%">
+      <el-table v-loading="loading" :data="tableData" border stripe style="width: 100%">
         <el-table-column prop="equipmentCode" label="设备编号" min-width="160" />
         <el-table-column prop="equipmentName" label="设备名称" min-width="180" />
         <el-table-column prop="categoryName" label="设备分类" min-width="140" />
@@ -103,11 +103,14 @@
 
       <div class="pagination-wrapper">
         <el-pagination
+            v-model:current-page="queryForm.pageNum"
+            v-model:page-size="queryForm.pageSize"
             background
-            layout="total, prev, pager, next, jumper"
-            :total="tableData.length"
-            :page-size="10"
-            :current-page="1"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+            :page-sizes="[10, 20, 50]"
+            @size-change="handleSizeChange"
+            @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -115,28 +118,14 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
+import { getEquipmentPage, type EquipmentItem } from '@/api/equipment'
 
-interface EquipmentItem {
-  id: number
-  equipmentCode: string
-  equipmentName: string
-  categoryName: string
-  model: string
-  workshopName: string
-  status: string
-  purchaseDate: string
-}
+const DEFAULT_PAGE_SIZE = 10
 
-const queryForm = reactive({
-  keyword: '',
-  category: '',
-  status: '',
-  workshop: '',
-})
-
-const tableData = ref<EquipmentItem[]>([
+/** 接口不可用时兜底展示，避免白屏 */
+const FALLBACK_ROWS: EquipmentItem[] = [
   {
     id: 1,
     equipmentCode: 'EQ-2026-0001',
@@ -187,7 +176,20 @@ const tableData = ref<EquipmentItem[]>([
     status: '停用',
     purchaseDate: '2022-09-30',
   },
-])
+]
+
+const queryForm = reactive({
+  keyword: '',
+  category: '',
+  status: '',
+  workshop: '',
+  pageNum: 1,
+  pageSize: DEFAULT_PAGE_SIZE,
+})
+
+const tableData = ref<EquipmentItem[]>([])
+const total = ref(0)
+const loading = ref(false)
 
 const getStatusTagType = (status: string) => {
   switch (status) {
@@ -204,8 +206,31 @@ const getStatusTagType = (status: string) => {
   }
 }
 
+const loadData = async () => {
+  loading.value = true
+  try {
+    const data = await getEquipmentPage({
+      pageNum: queryForm.pageNum,
+      pageSize: queryForm.pageSize,
+      keyword: queryForm.keyword || undefined,
+      category: queryForm.category || undefined,
+      status: queryForm.status || undefined,
+      workshop: queryForm.workshop || undefined,
+    })
+    tableData.value = Array.isArray(data.list) ? data.list : []
+    total.value = typeof data.total === 'number' ? data.total : 0
+  } catch {
+    queryForm.pageNum = 1
+    tableData.value = [...FALLBACK_ROWS]
+    total.value = FALLBACK_ROWS.length
+  } finally {
+    loading.value = false
+  }
+}
+
 const handleSearch = () => {
-  console.log('查询条件：', queryForm)
+  queryForm.pageNum = 1
+  loadData()
 }
 
 const handleReset = () => {
@@ -213,5 +238,21 @@ const handleReset = () => {
   queryForm.category = ''
   queryForm.status = ''
   queryForm.workshop = ''
+  queryForm.pageNum = 1
+  queryForm.pageSize = DEFAULT_PAGE_SIZE
+  loadData()
 }
+
+const handlePageChange = () => {
+  loadData()
+}
+
+const handleSizeChange = () => {
+  queryForm.pageNum = 1
+  loadData()
+}
+
+onMounted(() => {
+  loadData()
+})
 </script>
