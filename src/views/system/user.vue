@@ -1,11 +1,6 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <div>
-        <h2 class="page-title">用户管理</h2>
-        <p class="page-desc">管理系统用户、所属部门、角色与启停状态</p>
-      </div>
-    </div>
+    <PageHeader title="用户管理" description="管理系统用户、所属部门、角色与启停状态" />
 
     <el-card shadow="never" class="search-card">
       <el-form :inline="true" :model="queryForm" class="search-form">
@@ -118,6 +113,7 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 interface UserItem {
   id: number
@@ -202,63 +198,3 @@ const handleReset = () => {
   queryForm.status = ''
 }
 </script>
-
-<style scoped>
-.page-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  color: #303133;
-}
-
-.page-desc {
-  margin: 8px 0 0;
-  font-size: 14px;
-  color: #909399;
-}
-
-.search-card,
-.table-card {
-  border-radius: 12px;
-}
-
-.search-form {
-  margin-bottom: -18px;
-}
-
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.toolbar-left {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.toolbar-tip {
-  font-size: 14px;
-  color: #909399;
-}
-
-.pagination-wrapper {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 20px;
-}
-</style>
