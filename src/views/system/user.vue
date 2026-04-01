@@ -71,8 +71,8 @@
     <el-card shadow="never" class="table-card">
       <div class="toolbar">
         <div class="toolbar-left">
-          <el-button type="primary">新增用户</el-button>
-          <el-button>导出</el-button>
+          <el-button type="primary" @click="openCreate">新增用户</el-button>
+          <el-button disabled>导出</el-button>
         </div>
         <div class="toolbar-right">
           <span class="toolbar-tip">共 {{ total }} 条用户记录</span>
@@ -96,12 +96,12 @@
 
         <el-table-column prop="createTime" label="创建时间" min-width="180" />
 
-        <el-table-column label="操作" fixed="right" min-width="220">
-          <template #default>
-            <el-button type="primary" link>查看</el-button>
-            <el-button type="primary" link>编辑</el-button>
-            <el-button type="warning" link>重置密码</el-button>
-            <el-button type="danger" link>删除</el-button>
+        <el-table-column label="操作" fixed="right" min-width="280">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="openDetail(row.id)">查看</el-button>
+            <el-button type="primary" link @click="openEdit(row)">编辑</el-button>
+            <el-button type="warning" link @click="handleResetPassword(row)">重置密码</el-button>
+            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -125,13 +125,35 @@
         />
       </div>
     </el-card>
+
+    <UserFormDialog
+      v-model:visible="formVisible"
+      :mode="formMode"
+      :record-id="editingId"
+      :initial="formInitial"
+      :dept-options="deptOptions"
+      :role-options="roleOptions"
+      :status-options="userStatusOptions"
+      @success="onFormSuccess"
+    />
+
+    <UserDetailDialog v-model:visible="detailVisible" :user-id="detailId" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
-import { getUserPage, type UserItem } from '@/api/system'
+import UserFormDialog from './components/UserFormDialog.vue'
+import UserDetailDialog from './components/UserDetailDialog.vue'
+import {
+  deleteUser,
+  getUserPage,
+  resetUserPassword,
+  type UserFormPayload,
+  type UserItem,
+} from '@/api/system'
 import { loadDictOptions } from '@/composables/useDictOptions'
 import { DEPT_FALLBACK, ROLE_FALLBACK, USER_STATUS_FALLBACK } from '@/constants/dictFallbacks'
 import { useListFallbackRows } from '@/composables/useListFallback'
@@ -204,6 +226,14 @@ const tableData = ref<UserItem[]>([])
 const total = ref(0)
 const loading = ref(false)
 
+const formVisible = ref(false)
+const formMode = ref<'create' | 'edit'>('create')
+const editingId = ref<number | null>(null)
+const formInitial = ref<UserFormPayload | null>(null)
+
+const detailVisible = ref(false)
+const detailId = ref<number | null>(null)
+
 const loadDicts = async () => {
   const [d, r, s] = await Promise.all([
     loadDictOptions('sys_dept', DEPT_FALLBACK),
@@ -273,6 +303,80 @@ const handlePageChange = () => {
 const handleSizeChange = () => {
   queryForm.pageNum = 1
   loadData()
+}
+
+const openCreate = () => {
+  formMode.value = 'create'
+  editingId.value = null
+  formInitial.value = null
+  formVisible.value = true
+}
+
+const openEdit = (row: UserItem) => {
+  formMode.value = 'edit'
+  editingId.value = row.id
+  formInitial.value = {
+    username: row.username,
+    realName: row.realName,
+    deptName: row.deptName,
+    roleName: row.roleName,
+    phone: row.phone,
+    status: row.status,
+  }
+  formVisible.value = true
+}
+
+const openDetail = (id: number) => {
+  detailId.value = id
+  detailVisible.value = true
+}
+
+const handleDelete = async (row: UserItem) => {
+  try {
+    await ElMessageBox.confirm(`确定删除用户「${row.username}」吗？`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  await deleteUser(row.id)
+  await loadData()
+}
+
+const handleResetPassword = async (row: UserItem) => {
+  let newPassword: string
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `请输入用户「${row.username}」的新密码`,
+      '重置密码',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputType: 'password',
+        inputPlaceholder: '不少于 6 位',
+        inputValidator: (v) => {
+          if (!v || String(v).length < 6) {
+            return '密码至少 6 位'
+          }
+          return true
+        },
+      },
+    )
+    newPassword = String(value)
+  } catch {
+    return
+  }
+  await resetUserPassword(row.id, { newPassword })
+  ElMessage.success('密码已重置')
+}
+
+const onFormSuccess = async () => {
+  if (formMode.value === 'create') {
+    queryForm.pageNum = 1
+  }
+  await loadData()
 }
 
 onMounted(async () => {

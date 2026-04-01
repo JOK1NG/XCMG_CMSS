@@ -61,9 +61,20 @@ HTTP **401**：前端会清理 token 并跳转 `/login`（登录接口本身的 
 | PUT | `/workorder/{id}/assign` | 派工 body: `{ assigneeId }` |
 | PUT | `/workorder/{id}/close` | 关闭 |
 
+## 系统用户
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/system/user/page` | 分页查询 |
+| GET | `/system/user/{id}` | 详情 |
+| POST | `/system/user` | 新增 body: `{ username, password, realName, deptName, roleName, phone, status }` |
+| PUT | `/system/user/{id}` | 更新 body: `{ username, realName, deptName, roleName, phone, status }`（用户名仅展示，前端编辑时禁用改用户名与否以后端为准） |
+| DELETE | `/system/user/{id}` | 删除 |
+| PUT | `/system/user/{id}/password` | 重置密码 body: `{ newPassword }` |
+
 ## 其他列表页
 
-仍沿用原占位接口文件中的 `page` 路径（如 `/spare/page`、`/maintain/order/page`、`/system/user/page` 等），与 [`src/api`](../src/api) 中注释一致。
+仍沿用 [`src/api`](../src/api) 中注释：`/spare/page`、`/maintain/order/page` 等分页路径。
 
 ## 环境变量（联调/演示）
 
