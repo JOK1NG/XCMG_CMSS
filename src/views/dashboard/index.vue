@@ -177,26 +177,32 @@ const loadSummary = async () => {
 const loadCharts = async () => {
   chartLoading.value = true
   try {
-    const [costTrendRows, statusRows] = await Promise.all([
+    const [costTrendResult, statusResult] = await Promise.allSettled([
       getDashboardCostTrend(),
       getDashboardWorkOrderStatus(),
     ])
-    const costRows = Array.isArray(costTrendRows) ? costTrendRows : []
-    const stRows = Array.isArray(statusRows) ? statusRows : []
-    renderCostTrendChart(
-      costRows.length ? costRows : shouldUseListFallback() ? FALLBACK_COST_TREND : [],
-    )
-    renderStatusDistChart(
-      stRows.length ? stRows : shouldUseListFallback() ? FALLBACK_STATUS_DIST : [],
-    )
+    const useFallback = shouldUseListFallback()
+
+    const costRows =
+      costTrendResult.status === 'fulfilled' && Array.isArray(costTrendResult.value)
+        ? costTrendResult.value
+        : useFallback
+          ? FALLBACK_COST_TREND
+          : []
+    const statusRows =
+      statusResult.status === 'fulfilled' && Array.isArray(statusResult.value)
+        ? statusResult.value
+        : useFallback
+          ? FALLBACK_STATUS_DIST
+          : []
+
+    renderCostTrendChart(costRows)
+    renderStatusDistChart(statusRows)
   } catch {
-    if (shouldUseListFallback()) {
-      renderCostTrendChart(FALLBACK_COST_TREND)
-      renderStatusDistChart(FALLBACK_STATUS_DIST)
-    } else {
-      renderCostTrendChart([])
-      renderStatusDistChart([])
-    }
+    // Promise.allSettled 理论上不会因子任务失败抛出，这里只兜底意外异常。
+    const fallback = shouldUseListFallback()
+    renderCostTrendChart(fallback ? FALLBACK_COST_TREND : [])
+    renderStatusDistChart(fallback ? FALLBACK_STATUS_DIST : [])
   } finally {
     chartLoading.value = false
   }
