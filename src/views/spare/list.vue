@@ -1,33 +1,30 @@
 <template>
   <div class="page-container">
-    <PageHeader
-        title="备件管理"
-        description="管理备件档案、库存数量、预警值与供应信息"
-    />
+    <PageHeader title="备件管理" description="管理备件档案、库存数量、预警值与供应信息" />
 
     <el-card shadow="never" class="search-card">
       <el-form :inline="true" :model="queryForm" class="search-form">
         <el-form-item label="关键字">
           <el-input
-              v-model="queryForm.keyword"
-              placeholder="备件编号 / 备件名称"
-              clearable
-              style="width: 220px"
+            v-model="queryForm.keyword"
+            placeholder="备件编号 / 备件名称"
+            clearable
+            style="width: 220px"
           />
         </el-form-item>
 
         <el-form-item label="供应商">
           <el-select
-              v-model="queryForm.supplier"
-              placeholder="请选择供应商"
-              clearable
-              style="width: 180px"
+            v-model="queryForm.supplier"
+            placeholder="请选择供应商"
+            clearable
+            style="width: 180px"
           >
             <el-option
-                v-for="opt in supplierOptions"
-                :key="`sup-${String(opt.value)}`"
-                :label="opt.label"
-                :value="String(opt.value)"
+              v-for="opt in supplierOptions"
+              :key="`sup-${String(opt.value)}`"
+              :label="opt.label"
+              :value="String(opt.value)"
             />
           </el-select>
         </el-form-item>
@@ -42,10 +39,10 @@
     <el-card shadow="never" class="table-card">
       <div class="toolbar">
         <div class="toolbar-left">
-          <el-button type="primary">新增备件</el-button>
-          <el-button>入库</el-button>
-          <el-button>出库</el-button>
-          <el-button>导出</el-button>
+          <el-button type="primary" @click="openCreate">新增备件</el-button>
+          <el-button @click="openStockFromToolbar('in')">入库</el-button>
+          <el-button @click="openStockFromToolbar('out')">出库</el-button>
+          <el-button disabled>导出</el-button>
         </div>
         <div class="toolbar-right">
           <span class="toolbar-tip">共 {{ total }} 条备件记录</span>
@@ -71,43 +68,73 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" fixed="right" min-width="260">
-          <template #default>
-            <el-button type="primary" link>查看</el-button>
-            <el-button type="primary" link>编辑</el-button>
-            <el-button type="warning" link>入库</el-button>
-            <el-button type="success" link>出库</el-button>
-            <el-button type="danger" link>删除</el-button>
+        <el-table-column label="操作" fixed="right" min-width="300">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="openDetail(row.id)">查看</el-button>
+            <el-button type="primary" link @click="openEdit(row)">编辑</el-button>
+            <el-button type="warning" link @click="openStockFromRow(row, 'in')">入库</el-button>
+            <el-button type="success" link @click="openStockFromRow(row, 'out')">出库</el-button>
+            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <el-empty
-          v-if="!loading && tableData.length === 0"
-          description="暂无备件数据"
-          class="table-empty"
+        v-if="!loading && tableData.length === 0"
+        description="暂无备件数据"
+        class="table-empty"
       />
 
       <div class="pagination-wrapper">
         <el-pagination
-            v-model:current-page="queryForm.pageNum"
-            v-model:page-size="queryForm.pageSize"
-            background
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="total"
-            :page-sizes="[10, 20, 50]"
-            @size-change="handleSizeChange"
-            @current-change="handlePageChange"
+          v-model:current-page="queryForm.pageNum"
+          v-model:page-size="queryForm.pageSize"
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="total"
+          :page-sizes="[10, 20, 50]"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
+
+    <SpareFormDialog
+      v-model:visible="formVisible"
+      :mode="formMode"
+      :record-id="editingId"
+      :initial="formInitial"
+      :initial-stock-qty="editingStockQty"
+      :supplier-options="supplierOptions"
+      @success="onFormSuccess"
+    />
+
+    <SpareDetailDialog v-model:visible="detailVisible" :spare-id="detailId" />
+
+    <SpareStockDialog
+      v-model:visible="stockVisible"
+      :mode="stockMode"
+      :preset-spare-id="stockPresetId"
+      :preset-label="stockPresetLabel"
+      :current-stock-qty="stockCurrentQty"
+      @success="onStockSuccess"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
-import { getSparePage, type SpareItem } from '@/api/spare'
+import SpareFormDialog from './components/SpareFormDialog.vue'
+import SpareDetailDialog from './components/SpareDetailDialog.vue'
+import SpareStockDialog from './components/SpareStockDialog.vue'
+import {
+  deleteSpare,
+  getSparePage,
+  type SpareFormPayload,
+  type SpareItem,
+} from '@/api/spare'
 import { loadDictOptions } from '@/composables/useDictOptions'
 import { SPARE_SUPPLIER_FALLBACK } from '@/constants/dictFallbacks'
 import { useListFallbackRows } from '@/composables/useListFallback'
@@ -184,6 +211,21 @@ const tableData = ref<SpareItem[]>([])
 const total = ref(0)
 const loading = ref(false)
 
+const formVisible = ref(false)
+const formMode = ref<'create' | 'edit'>('create')
+const editingId = ref<number | null>(null)
+const formInitial = ref<SpareFormPayload | null>(null)
+const editingStockQty = ref<number | null>(null)
+
+const detailVisible = ref(false)
+const detailId = ref<number | null>(null)
+
+const stockVisible = ref(false)
+const stockMode = ref<'in' | 'out'>('in')
+const stockPresetId = ref<number | null>(null)
+const stockPresetLabel = ref('')
+const stockCurrentQty = ref<number | null>(null)
+
 const loadDicts = async () => {
   supplierOptions.value = await loadDictOptions('spare_supplier', SPARE_SUPPLIER_FALLBACK)
 }
@@ -206,7 +248,6 @@ const getStockTagType = (status: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    // 备注：stockStatus 是前端根据库存数量计算的展示字段，不参与后端分页查询，避免分页后前端过滤导致总数失真。
     const data = await getSparePage({
       pageNum: queryForm.pageNum,
       pageSize: queryForm.pageSize,
@@ -247,6 +288,77 @@ const handlePageChange = () => {
 const handleSizeChange = () => {
   queryForm.pageNum = 1
   loadData()
+}
+
+const openCreate = () => {
+  formMode.value = 'create'
+  editingId.value = null
+  formInitial.value = null
+  editingStockQty.value = null
+  formVisible.value = true
+}
+
+const openEdit = (row: SpareItem) => {
+  formMode.value = 'edit'
+  editingId.value = row.id
+  editingStockQty.value = row.stockQty
+  formInitial.value = {
+    spareCode: row.spareCode,
+    spareName: row.spareName,
+    spec: row.spec,
+    unit: row.unit,
+    warningQty: row.warningQty,
+    price: row.price,
+    supplierName: row.supplierName,
+    location: row.location,
+  }
+  formVisible.value = true
+}
+
+const openDetail = (id: number) => {
+  detailId.value = id
+  detailVisible.value = true
+}
+
+const handleDelete = async (row: SpareItem) => {
+  try {
+    await ElMessageBox.confirm(`确定删除备件「${row.spareName}」吗？`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  await deleteSpare(row.id)
+  await loadData()
+}
+
+const openStockFromToolbar = (mode: 'in' | 'out') => {
+  stockMode.value = mode
+  stockPresetId.value = null
+  stockPresetLabel.value = ''
+  stockCurrentQty.value = null
+  stockVisible.value = true
+}
+
+const openStockFromRow = (row: SpareItem, mode: 'in' | 'out') => {
+  stockMode.value = mode
+  stockPresetId.value = row.id
+  stockPresetLabel.value = `${row.spareName}（${row.spareCode}）`
+  stockCurrentQty.value = row.stockQty
+  stockVisible.value = true
+}
+
+const onFormSuccess = async () => {
+  if (formMode.value === 'create') {
+    queryForm.pageNum = 1
+  }
+  await loadData()
+}
+
+const onStockSuccess = async () => {
+  await loadData()
 }
 
 onMounted(async () => {

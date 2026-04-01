@@ -72,9 +72,21 @@ HTTP **401**：前端会清理 token 并跳转 `/login`（登录接口本身的 
 | DELETE | `/system/user/{id}` | 删除 |
 | PUT | `/system/user/{id}/password` | 重置密码 body: `{ newPassword }` |
 
+## 备件
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/spare/page` | 分页查询 |
+| GET | `/spare/{id}` | 详情 |
+| POST | `/spare` | 新增 body: `{ spareCode, spareName, spec, unit, warningQty, price, supplierName, location, stockQty? }`（`stockQty` 为可选初始库存） |
+| PUT | `/spare/{id}` | 更新档案 body: 与列表字段一致（不含库存数量；库存通过入出库变更） |
+| DELETE | `/spare/{id}` | 删除 |
+| PUT | `/spare/{id}/stock-in` | 入库 body: `{ qty, remark? }` |
+| PUT | `/spare/{id}/stock-out` | 出库 body: `{ qty, remark? }` |
+
 ## 其他列表页
 
-仍沿用 [`src/api`](../src/api) 中注释：`/spare/page`、`/maintain/order/page` 等分页路径。
+仍沿用 [`src/api`](../src/api) 中注释：`/maintain/order/page` 等分页路径（备件见上表）。
 
 ## 环境变量（联调/演示）
 
