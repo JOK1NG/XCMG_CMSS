@@ -4,6 +4,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios'
 import { ElMessage } from 'element-plus'
+import router from '@/router'
 
 /** 后端统一响应外壳（与业务 data 区分） */
 export interface ApiResult<T = unknown> {
@@ -64,6 +65,26 @@ service.interceptors.response.use(
     return body
   }) as Parameters<AxiosInstance['interceptors']['response']['use']>[0],
   ((error) => {
+    const status = error.response?.status
+    if (status === 401) {
+      const reqUrl = String(error.config?.url ?? '')
+      const isLoginCall = reqUrl.includes('/auth/login')
+      if (!isLoginCall) {
+        localStorage.removeItem('token')
+        if (router.currentRoute.value.path !== '/login') {
+          router
+            .push({
+              path: '/login',
+              query: { redirect: router.currentRoute.value.fullPath },
+            })
+            .catch(() => {})
+        }
+      }
+      const backendMsg = (error.response?.data as ApiResult | undefined)?.msg
+      ElMessage.error(backendMsg || (isLoginCall ? '用户名或密码错误' : '登录已失效，请重新登录'))
+      return Promise.reject(error)
+    }
+
     const backendMsg = (error.response?.data as ApiResult | undefined)?.msg
     const message =
       backendMsg || error.message || '网络异常，请稍后重试'

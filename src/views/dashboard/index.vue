@@ -62,6 +62,7 @@ import {
   type DashboardSummaryData,
   type DashboardWorkOrderStatusItem,
 } from '@/api/dashboard'
+import { shouldUseListFallback } from '@/composables/useListFallback'
 
 const FALLBACK_SUMMARY: DashboardSummaryData = {
   runningEquipmentCount: 42,
@@ -157,10 +158,17 @@ const loadSummary = async () => {
     summary.availabilityRate = Number(data.availabilityRate) || 0
     summary.avgResponseHours = Number(data.avgResponseHours) || 0
   } catch {
-    summary.runningEquipmentCount = FALLBACK_SUMMARY.runningEquipmentCount
-    summary.monthWorkOrderCount = FALLBACK_SUMMARY.monthWorkOrderCount
-    summary.availabilityRate = FALLBACK_SUMMARY.availabilityRate
-    summary.avgResponseHours = FALLBACK_SUMMARY.avgResponseHours
+    if (shouldUseListFallback()) {
+      summary.runningEquipmentCount = FALLBACK_SUMMARY.runningEquipmentCount
+      summary.monthWorkOrderCount = FALLBACK_SUMMARY.monthWorkOrderCount
+      summary.availabilityRate = FALLBACK_SUMMARY.availabilityRate
+      summary.avgResponseHours = FALLBACK_SUMMARY.avgResponseHours
+    } else {
+      summary.runningEquipmentCount = 0
+      summary.monthWorkOrderCount = 0
+      summary.availabilityRate = 0
+      summary.avgResponseHours = 0
+    }
   } finally {
     loading.value = false
   }
@@ -170,11 +178,25 @@ const loadCharts = async () => {
   chartLoading.value = true
   try {
     const [costTrendRows, statusRows] = await Promise.all([
-      getDashboardCostTrend().catch(() => [...FALLBACK_COST_TREND]),
-      getDashboardWorkOrderStatus().catch(() => [...FALLBACK_STATUS_DIST]),
+      getDashboardCostTrend(),
+      getDashboardWorkOrderStatus(),
     ])
-    renderCostTrendChart(Array.isArray(costTrendRows) ? costTrendRows : FALLBACK_COST_TREND)
-    renderStatusDistChart(Array.isArray(statusRows) ? statusRows : FALLBACK_STATUS_DIST)
+    const costRows = Array.isArray(costTrendRows) ? costTrendRows : []
+    const stRows = Array.isArray(statusRows) ? statusRows : []
+    renderCostTrendChart(
+      costRows.length ? costRows : shouldUseListFallback() ? FALLBACK_COST_TREND : [],
+    )
+    renderStatusDistChart(
+      stRows.length ? stRows : shouldUseListFallback() ? FALLBACK_STATUS_DIST : [],
+    )
+  } catch {
+    if (shouldUseListFallback()) {
+      renderCostTrendChart(FALLBACK_COST_TREND)
+      renderStatusDistChart(FALLBACK_STATUS_DIST)
+    } else {
+      renderCostTrendChart([])
+      renderStatusDistChart([])
+    }
   } finally {
     chartLoading.value = false
   }

@@ -6,50 +6,55 @@
       <el-form :inline="true" :model="queryForm" class="search-form">
         <el-form-item label="关键字">
           <el-input
-              v-model="queryForm.keyword"
-              placeholder="工单编号 / 设备名称"
-              clearable
-              style="width: 220px"
+            v-model="queryForm.keyword"
+            placeholder="工单编号 / 设备名称"
+            clearable
+            style="width: 220px"
           />
         </el-form-item>
 
         <el-form-item label="保养状态">
           <el-select
-              v-model="queryForm.status"
-              placeholder="请选择状态"
-              clearable
-              style="width: 160px"
+            v-model="queryForm.status"
+            placeholder="请选择状态"
+            clearable
+            style="width: 160px"
           >
-            <el-option label="待执行" value="待执行" />
-            <el-option label="执行中" value="执行中" />
-            <el-option label="已完成" value="已完成" />
-            <el-option label="已关闭" value="已关闭" />
+            <el-option
+              v-for="opt in statusOptions"
+              :key="`ms-${String(opt.value)}`"
+              :label="opt.label"
+              :value="String(opt.value)"
+            />
           </el-select>
         </el-form-item>
 
         <el-form-item label="保养模板">
           <el-select
-              v-model="queryForm.template"
-              placeholder="请选择模板"
-              clearable
-              style="width: 180px"
+            v-model="queryForm.template"
+            placeholder="请选择模板"
+            clearable
+            style="width: 180px"
           >
-            <el-option label="数控车床月度保养" value="数控车床月度保养" />
-            <el-option label="加工中心季度保养" value="加工中心季度保养" />
-            <el-option label="磨床月度保养" value="磨床月度保养" />
+            <el-option
+              v-for="opt in templateOptions"
+              :key="`mt-${String(opt.value)}`"
+              :label="opt.label"
+              :value="String(opt.value)"
+            />
           </el-select>
         </el-form-item>
 
         <el-form-item label="计划日期">
           <el-date-picker
-              v-model="queryForm.dateRange"
-              type="daterange"
-              unlink-panels
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              value-format="YYYY-MM-DD"
-              style="width: 260px"
+            v-model="queryForm.dateRange"
+            type="daterange"
+            unlink-panels
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            style="width: 260px"
           />
         </el-form-item>
 
@@ -96,16 +101,22 @@
         </el-table-column>
       </el-table>
 
+      <el-empty
+        v-if="!loading && tableData.length === 0"
+        description="暂无保养工单数据"
+        class="table-empty"
+      />
+
       <div class="pagination-wrapper">
         <el-pagination
-            v-model:current-page="queryForm.pageNum"
-            v-model:page-size="queryForm.pageSize"
-            background
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="total"
-            :page-sizes="[10, 20, 50]"
-            @size-change="handleSizeChange"
-            @current-change="handlePageChange"
+          v-model:current-page="queryForm.pageNum"
+          v-model:page-size="queryForm.pageSize"
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="total"
+          :page-sizes="[10, 20, 50]"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -116,6 +127,9 @@
 import { onMounted, reactive, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { getMaintainOrderPage, type MaintainOrderItem } from '@/api/maintain'
+import { loadDictOptions } from '@/composables/useDictOptions'
+import { MAINTAIN_STATUS_FALLBACK, MAINTAIN_TEMPLATE_FALLBACK } from '@/constants/dictFallbacks'
+import { useListFallbackRows } from '@/composables/useListFallback'
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -159,6 +173,14 @@ const FALLBACK_ROWS: MaintainOrderItem[] = [
   },
 ]
 
+const { shouldUseFallback, applyFallback } = useListFallbackRows({
+  fallbackRows: FALLBACK_ROWS,
+  resetPageOnFallback: true,
+})
+
+const statusOptions = ref(MAINTAIN_STATUS_FALLBACK)
+const templateOptions = ref(MAINTAIN_TEMPLATE_FALLBACK)
+
 const queryForm = reactive({
   keyword: '',
   status: '',
@@ -171,6 +193,15 @@ const queryForm = reactive({
 const tableData = ref<MaintainOrderItem[]>([])
 const total = ref(0)
 const loading = ref(false)
+
+const loadDicts = async () => {
+  const [s, t] = await Promise.all([
+    loadDictOptions('maintain_status', MAINTAIN_STATUS_FALLBACK),
+    loadDictOptions('maintain_template', MAINTAIN_TEMPLATE_FALLBACK),
+  ])
+  statusOptions.value = s
+  templateOptions.value = t
+}
 
 const getStatusTagType = (status: string) => {
   switch (status) {
@@ -206,9 +237,12 @@ const loadData = async () => {
     tableData.value = Array.isArray(data.list) ? data.list : []
     total.value = typeof data.total === 'number' ? data.total : 0
   } catch {
-    queryForm.pageNum = 1
-    tableData.value = [...FALLBACK_ROWS]
-    total.value = FALLBACK_ROWS.length
+    if (shouldUseFallback()) {
+      applyFallback(queryForm, tableData, total)
+    } else {
+      tableData.value = []
+      total.value = 0
+    }
   } finally {
     loading.value = false
   }
@@ -238,7 +272,14 @@ const handleSizeChange = () => {
   loadData()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadDicts()
   loadData()
 })
 </script>
+
+<style scoped>
+.table-empty {
+  padding: 24px 0;
+}
+</style>

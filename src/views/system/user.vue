@@ -6,50 +6,58 @@
       <el-form :inline="true" :model="queryForm" class="search-form">
         <el-form-item label="关键字">
           <el-input
-              v-model="queryForm.keyword"
-              placeholder="用户名 / 姓名 / 手机号"
-              clearable
-              style="width: 220px"
+            v-model="queryForm.keyword"
+            placeholder="用户名 / 姓名 / 手机号"
+            clearable
+            style="width: 220px"
           />
         </el-form-item>
 
         <el-form-item label="部门">
           <el-select
-              v-model="queryForm.dept"
-              placeholder="请选择部门"
-              clearable
-              style="width: 180px"
+            v-model="queryForm.dept"
+            placeholder="请选择部门"
+            clearable
+            style="width: 180px"
           >
-            <el-option label="设备部" value="设备部" />
-            <el-option label="维修班" value="维修班" />
-            <el-option label="仓储部" value="仓储部" />
-            <el-option label="生产部" value="生产部" />
+            <el-option
+              v-for="opt in deptOptions"
+              :key="`d-${String(opt.value)}`"
+              :label="opt.label"
+              :value="String(opt.value)"
+            />
           </el-select>
         </el-form-item>
 
         <el-form-item label="角色">
           <el-select
-              v-model="queryForm.role"
-              placeholder="请选择角色"
-              clearable
-              style="width: 180px"
+            v-model="queryForm.role"
+            placeholder="请选择角色"
+            clearable
+            style="width: 180px"
           >
-            <el-option label="超级管理员" value="超级管理员" />
-            <el-option label="设备管理员" value="设备管理员" />
-            <el-option label="维修工" value="维修工" />
-            <el-option label="仓库管理员" value="仓库管理员" />
+            <el-option
+              v-for="opt in roleOptions"
+              :key="`r-${String(opt.value)}`"
+              :label="opt.label"
+              :value="String(opt.value)"
+            />
           </el-select>
         </el-form-item>
 
         <el-form-item label="状态">
           <el-select
-              v-model="queryForm.status"
-              placeholder="请选择状态"
-              clearable
-              style="width: 160px"
+            v-model="queryForm.status"
+            placeholder="请选择状态"
+            clearable
+            style="width: 160px"
           >
-            <el-option label="启用" value="启用" />
-            <el-option label="停用" value="停用" />
+            <el-option
+              v-for="opt in userStatusOptions"
+              :key="`us-${String(opt.value)}`"
+              :label="opt.label"
+              :value="String(opt.value)"
+            />
           </el-select>
         </el-form-item>
 
@@ -98,16 +106,22 @@
         </el-table-column>
       </el-table>
 
+      <el-empty
+        v-if="!loading && tableData.length === 0"
+        description="暂无用户数据"
+        class="table-empty"
+      />
+
       <div class="pagination-wrapper">
         <el-pagination
-            v-model:current-page="queryForm.pageNum"
-            v-model:page-size="queryForm.pageSize"
-            background
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="total"
-            :page-sizes="[10, 20, 50]"
-            @size-change="handleSizeChange"
-            @current-change="handlePageChange"
+          v-model:current-page="queryForm.pageNum"
+          v-model:page-size="queryForm.pageSize"
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="total"
+          :page-sizes="[10, 20, 50]"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -118,6 +132,9 @@
 import { onMounted, reactive, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { getUserPage, type UserItem } from '@/api/system'
+import { loadDictOptions } from '@/composables/useDictOptions'
+import { DEPT_FALLBACK, ROLE_FALLBACK, USER_STATUS_FALLBACK } from '@/constants/dictFallbacks'
+import { useListFallbackRows } from '@/composables/useListFallback'
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -165,6 +182,15 @@ const FALLBACK_ROWS: UserItem[] = [
   },
 ]
 
+const { shouldUseFallback, applyFallback } = useListFallbackRows({
+  fallbackRows: FALLBACK_ROWS,
+  resetPageOnFallback: true,
+})
+
+const deptOptions = ref(DEPT_FALLBACK)
+const roleOptions = ref(ROLE_FALLBACK)
+const userStatusOptions = ref(USER_STATUS_FALLBACK)
+
 const queryForm = reactive({
   keyword: '',
   dept: '',
@@ -177,6 +203,17 @@ const queryForm = reactive({
 const tableData = ref<UserItem[]>([])
 const total = ref(0)
 const loading = ref(false)
+
+const loadDicts = async () => {
+  const [d, r, s] = await Promise.all([
+    loadDictOptions('sys_dept', DEPT_FALLBACK),
+    loadDictOptions('sys_role', ROLE_FALLBACK),
+    loadDictOptions('user_status', USER_STATUS_FALLBACK),
+  ])
+  deptOptions.value = d
+  roleOptions.value = r
+  userStatusOptions.value = s
+}
 
 const getStatusTagType = (status: string) => {
   switch (status) {
@@ -203,9 +240,12 @@ const loadData = async () => {
     tableData.value = Array.isArray(data.list) ? data.list : []
     total.value = typeof data.total === 'number' ? data.total : 0
   } catch {
-    queryForm.pageNum = 1
-    tableData.value = [...FALLBACK_ROWS]
-    total.value = FALLBACK_ROWS.length
+    if (shouldUseFallback()) {
+      applyFallback(queryForm, tableData, total)
+    } else {
+      tableData.value = []
+      total.value = 0
+    }
   } finally {
     loading.value = false
   }
@@ -235,7 +275,14 @@ const handleSizeChange = () => {
   loadData()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadDicts()
   loadData()
 })
 </script>
+
+<style scoped>
+.table-empty {
+  padding: 24px 0;
+}
+</style>

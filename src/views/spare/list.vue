@@ -23,9 +23,12 @@
               clearable
               style="width: 180px"
           >
-            <el-option label="洛阳轴承" value="洛阳轴承" />
-            <el-option label="西门子工业" value="西门子工业" />
-            <el-option label="阿特拉斯" value="阿特拉斯" />
+            <el-option
+                v-for="opt in supplierOptions"
+                :key="`sup-${String(opt.value)}`"
+                :label="opt.label"
+                :value="String(opt.value)"
+            />
           </el-select>
         </el-form-item>
 
@@ -79,6 +82,12 @@
         </el-table-column>
       </el-table>
 
+      <el-empty
+          v-if="!loading && tableData.length === 0"
+          description="暂无备件数据"
+          class="table-empty"
+      />
+
       <div class="pagination-wrapper">
         <el-pagination
             v-model:current-page="queryForm.pageNum"
@@ -99,6 +108,9 @@
 import { onMounted, reactive, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { getSparePage, type SpareItem } from '@/api/spare'
+import { loadDictOptions } from '@/composables/useDictOptions'
+import { SPARE_SUPPLIER_FALLBACK } from '@/constants/dictFallbacks'
+import { useListFallbackRows } from '@/composables/useListFallback'
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -154,6 +166,13 @@ const FALLBACK_ROWS: SpareItem[] = [
   },
 ]
 
+const { shouldUseFallback, applyFallback } = useListFallbackRows({
+  fallbackRows: FALLBACK_ROWS,
+  resetPageOnFallback: true,
+})
+
+const supplierOptions = ref(SPARE_SUPPLIER_FALLBACK)
+
 const queryForm = reactive({
   keyword: '',
   supplier: '',
@@ -164,6 +183,10 @@ const queryForm = reactive({
 const tableData = ref<SpareItem[]>([])
 const total = ref(0)
 const loading = ref(false)
+
+const loadDicts = async () => {
+  supplierOptions.value = await loadDictOptions('spare_supplier', SPARE_SUPPLIER_FALLBACK)
+}
 
 const getStockStatus = (row: Pick<SpareItem, 'stockQty' | 'warningQty'>) => {
   return row.stockQty <= row.warningQty ? '低库存预警' : '正常'
@@ -193,9 +216,12 @@ const loadData = async () => {
     tableData.value = Array.isArray(data.list) ? data.list : []
     total.value = typeof data.total === 'number' ? data.total : 0
   } catch {
-    queryForm.pageNum = 1
-    tableData.value = [...FALLBACK_ROWS]
-    total.value = FALLBACK_ROWS.length
+    if (shouldUseFallback()) {
+      applyFallback(queryForm, tableData, total)
+    } else {
+      tableData.value = []
+      total.value = 0
+    }
   } finally {
     loading.value = false
   }
@@ -223,7 +249,14 @@ const handleSizeChange = () => {
   loadData()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadDicts()
   loadData()
 })
 </script>
+
+<style scoped>
+.table-empty {
+  padding: 24px 0;
+}
+</style>

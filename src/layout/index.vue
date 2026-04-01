@@ -23,6 +23,9 @@
     <div class="main-wrapper">
       <header class="header">
         <div class="header-title">{{ pageTitle }}</div>
+        <div class="header-actions">
+          <el-button link type="primary" @click="handleLogout">退出登录</el-button>
+        </div>
       </header>
 
       <main class="main-content">
@@ -34,12 +37,28 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessageBox } from 'element-plus'
 
 const route = useRoute()
+const router = useRouter()
 
 const activeMenu = computed(() => route.path)
 const pageTitle = computed(() => {
   return (route.meta.title as string) || '后台管理系统'
 })
+
+const handleLogout = async () => {
+  try {
+    await ElMessageBox.confirm('确定退出当前账号吗？', '退出确认', {
+      type: 'warning',
+      confirmButtonText: '退出',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  localStorage.removeItem('token')
+  await router.push({ path: '/login' })
+}
 </script>

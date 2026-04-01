@@ -20,12 +20,12 @@
             clearable
             style="width: 160px"
           >
-            <el-option label="待派工" :value="1" />
-            <el-option label="已派工" :value="2" />
-            <el-option label="维修中" :value="3" />
-            <el-option label="待验收" :value="4" />
-            <el-option label="已完成" :value="5" />
-            <el-option label="已关闭" :value="6" />
+            <el-option
+              v-for="opt in statusOptions"
+              :key="`st-${String(opt.value)}`"
+              :label="opt.label"
+              :value="Number(opt.value)"
+            />
           </el-select>
         </el-form-item>
 
@@ -36,9 +36,12 @@
             clearable
             style="width: 160px"
           >
-            <el-option label="紧急" :value="1" />
-            <el-option label="一般" :value="2" />
-            <el-option label="低" :value="3" />
+            <el-option
+              v-for="opt in faultLevelOptions"
+              :key="`lv-${String(opt.value)}`"
+              :label="opt.label"
+              :value="Number(opt.value)"
+            />
           </el-select>
         </el-form-item>
 
@@ -64,8 +67,8 @@
     <el-card shadow="never" class="table-card">
       <div class="toolbar">
         <div class="toolbar-left">
-          <el-button type="primary">发起报修</el-button>
-          <el-button>导出</el-button>
+          <el-button type="primary" @click="reportVisible = true">发起报修</el-button>
+          <el-button disabled>导出</el-button>
         </div>
         <div class="toolbar-right">
           <span class="toolbar-tip">共 {{ total }} 条工单记录</span>
@@ -97,14 +100,34 @@
         <el-table-column prop="reportTime" label="报修时间" min-width="180" />
         <el-table-column prop="assigneeName" label="维修人" min-width="120" />
 
-        <el-table-column label="操作" fixed="right" min-width="180">
-          <template #default>
-            <el-button type="primary" link>查看</el-button>
-            <el-button type="primary" link>派工</el-button>
-            <el-button type="danger" link>关闭</el-button>
+        <el-table-column label="操作" fixed="right" min-width="220">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="openDetail(row.id)">查看</el-button>
+            <el-button
+              v-if="canAssign(row.status)"
+              type="primary"
+              link
+              @click="openAssign(row)"
+            >
+              派工
+            </el-button>
+            <el-button
+              v-if="canClose(row.status)"
+              type="danger"
+              link
+              @click="handleClose(row)"
+            >
+              关闭
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
+
+      <el-empty
+        v-if="!loading && tableData.length === 0"
+        description="暂无工单数据"
+        class="table-empty"
+      />
 
       <div class="pagination-wrapper">
         <el-pagination
@@ -119,13 +142,35 @@
         />
       </div>
     </el-card>
+
+    <WorkOrderDetailDialog v-model:visible="detailVisible" :work-order-id="detailId" />
+
+    <WorkOrderReportDialog
+      v-model:visible="reportVisible"
+      :fault-level-options="faultLevelOptions"
+      @success="onReportSuccess"
+    />
+
+    <WorkOrderAssignDialog
+      v-model:visible="assignVisible"
+      :work-order-id="assignOrderId"
+      :work-order-code="assignOrderCode"
+      @success="loadData"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
-import { getWorkOrderPage, type WorkOrderItem } from '@/api/workorder'
+import WorkOrderDetailDialog from './components/WorkOrderDetailDialog.vue'
+import WorkOrderReportDialog from './components/WorkOrderReportDialog.vue'
+import WorkOrderAssignDialog from './components/WorkOrderAssignDialog.vue'
+import { closeWorkOrder, getWorkOrderPage, type WorkOrderItem } from '@/api/workorder'
+import { loadDictOptions } from '@/composables/useDictOptions'
+import { FAULT_LEVEL_FALLBACK, WORKORDER_STATUS_FALLBACK } from '@/constants/dictFallbacks'
+import { useListFallbackRows } from '@/composables/useListFallback'
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -180,6 +225,11 @@ const FALLBACK_ROWS: WorkOrderItem[] = [
   },
 ]
 
+const { shouldUseFallback, applyFallback } = useListFallbackRows({
+  fallbackRows: FALLBACK_ROWS,
+  resetPageOnFallback: true,
+})
+
 const queryForm = reactive({
   keyword: '',
   status: undefined as number | undefined,
@@ -192,6 +242,18 @@ const queryForm = reactive({
 const tableData = ref<WorkOrderItem[]>([])
 const total = ref(0)
 const loading = ref(false)
+
+const statusOptions = ref(WORKORDER_STATUS_FALLBACK)
+const faultLevelOptions = ref(FAULT_LEVEL_FALLBACK)
+
+const detailVisible = ref(false)
+const detailId = ref<number | null>(null)
+
+const reportVisible = ref(false)
+
+const assignVisible = ref(false)
+const assignOrderId = ref<number | null>(null)
+const assignOrderCode = ref('')
 
 const getStatusLabel = (status: number) => {
   switch (status) {
@@ -257,6 +319,21 @@ const getLevelTagType = (level: number) => {
   }
 }
 
+/** 待派工时允许派工 */
+const canAssign = (status: number) => status === 1
+
+/** 未关闭允许关闭 */
+const canClose = (status: number) => status !== 6
+
+const loadDicts = async () => {
+  const [s, f] = await Promise.all([
+    loadDictOptions('workorder_status', WORKORDER_STATUS_FALLBACK),
+    loadDictOptions('fault_level', FAULT_LEVEL_FALLBACK),
+  ])
+  statusOptions.value = s
+  faultLevelOptions.value = f
+}
+
 const loadData = async () => {
   loading.value = true
   try {
@@ -276,9 +353,12 @@ const loadData = async () => {
     tableData.value = Array.isArray(data.list) ? data.list : []
     total.value = typeof data.total === 'number' ? data.total : 0
   } catch {
-    queryForm.pageNum = 1
-    tableData.value = [...FALLBACK_ROWS]
-    total.value = FALLBACK_ROWS.length
+    if (shouldUseFallback()) {
+      applyFallback(queryForm, tableData, total)
+    } else {
+      tableData.value = []
+      total.value = 0
+    }
   } finally {
     loading.value = false
   }
@@ -308,7 +388,44 @@ const handleSizeChange = () => {
   loadData()
 }
 
-onMounted(() => {
+const openDetail = (id: number) => {
+  detailId.value = id
+  detailVisible.value = true
+}
+
+const openAssign = (row: WorkOrderItem) => {
+  assignOrderId.value = row.id
+  assignOrderCode.value = row.workOrderCode
+  assignVisible.value = true
+}
+
+const handleClose = async (row: WorkOrderItem) => {
+  try {
+    await ElMessageBox.confirm(`确定关闭工单「${row.workOrderCode}」吗？`, '关闭确认', {
+      type: 'warning',
+      confirmButtonText: '关闭',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  await closeWorkOrder(row.id)
+  await loadData()
+}
+
+const onReportSuccess = async () => {
+  queryForm.pageNum = 1
+  await loadData()
+}
+
+onMounted(async () => {
+  await loadDicts()
   loadData()
 })
 </script>
+
+<style scoped>
+.table-empty {
+  padding: 24px 0;
+}
+</style>
