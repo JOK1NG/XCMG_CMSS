@@ -24,6 +24,7 @@
       <header class="header">
         <div class="header-title">{{ pageTitle }}</div>
         <div class="header-actions">
+          <span class="welcome-text">你好，{{ displayName }}</span>
           <el-button link type="primary" @click="handleLogout">退出登录</el-button>
         </div>
       </header>
@@ -39,14 +40,17 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const activeMenu = computed(() => route.path)
 const pageTitle = computed(() => {
   return (route.meta.title as string) || '后台管理系统'
 })
+const displayName = computed(() => authStore.user?.realName || authStore.user?.username || '用户')
 
 const handleLogout = async () => {
   try {
@@ -58,7 +62,20 @@ const handleLogout = async () => {
   } catch {
     return
   }
-  localStorage.removeItem('token')
+  authStore.clearSession()
   await router.push({ path: '/login' })
 }
 </script>
+
+<style scoped>
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.welcome-text {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+</style>

@@ -19,7 +19,19 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/auth/login` |  body: `{ username, password }`，data: `{ token }` |
+| POST | `/auth/login` |  body: `{ username, password }`，data: `{ token, userInfo, roleCodes }` |
+
+登录返回建议结构（前端实际兼容 `userInfo` / `user`，`roleCode` / `roleCodes`）：
+
+```json
+{
+  "token": "xxx",
+  "userInfo": { "id": 1, "username": "admin", "realName": "系统管理员" },
+  "roleCodes": ["ROLE_ADMIN"]
+}
+```
+
+`roleCodes` 约定值（按优先级高到低）：`ROLE_ADMIN`、`ROLE_MAINTAIN_MANAGER`、`ROLE_EXECUTOR`、`ROLE_VIEWER`。
 
 请求头：`Authorization: Bearer <token>`（登录成功后写入 `localStorage.token`）。
 
@@ -84,9 +96,51 @@ HTTP **401**：前端会清理 token 并跳转 `/login`（登录接口本身的 
 | PUT | `/spare/{id}/stock-in` | 入库 body: `{ qty, remark? }` |
 | PUT | `/spare/{id}/stock-out` | 出库 body: `{ qty, remark? }` |
 
-## 其他列表页
+## 保养工单与规则（第二阶段）
 
-仍沿用 [`src/api`](../src/api) 中注释：`/maintain/order/page` 等分页路径（备件见上表）。
+### 保养工单
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/maintain/order/page` | 分页查询，支持 `keyword/status/template/startDate/endDate` |
+| GET | `/maintain/order/{id}` | 工单详情（基础信息 + 时间线 + 执行/完成记录 + 耗材 + 附件 + 规则来源） |
+| POST | `/maintain/order` | 手动建单，支持只建单或建单并派工 |
+| PUT | `/maintain/order/{id}/assign` | 派工 body: `{ assigneeId, plannedExecuteTime?, remark? }` |
+| PUT | `/maintain/order/{id}/start` | 执行 body: `{ assigneeId?, plannedExecuteTime?, remark? }` |
+| PUT | `/maintain/order/{id}/finish` | 完成（结果、检查项、耗材、附件） |
+| PUT | `/maintain/order/{id}/close` | 关闭 body: `{ reasonType, reasonRemark }` |
+
+### 保养规则
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/maintain/rule/page` | 规则分页 |
+| POST | `/maintain/rule` | 新增规则 |
+| PUT | `/maintain/rule/{id}` | 编辑规则 |
+| PUT | `/maintain/rule/{id}/enabled` | 启停规则 body: `{ enabled }` |
+| POST | `/maintain/rule/{id}/generate` | 单条规则立即生成/补生成 |
+
+### 保养模板
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/maintain/template/page` | 模板分页（供规则和建单选择） |
+| GET | `/maintain/template/{id}` | 模板详情（固定检查项） |
+
+### 附件上传
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/maintain/attachment/upload` | `multipart/form-data`，字段名 `file` |
+
+### 状态机与枚举约定
+
+- 状态机：`待派工 -> 待执行 -> 执行中 -> 已完成`，仅 `待派工/待执行` 允许关闭。
+- 完成结果：`正常完成` / `部分完成` / `异常完成`。
+- 检查项结果：`正常` / `异常` / `不适用`。
+- 关闭原因分类：`无法执行` / `重复工单` / `设备停用` / `其他`（需补充文本说明）。
+- 周期枚举：`DAILY` / `WEEKLY` / `MONTHLY` / `QUARTERLY` / `YEARLY`。
+- 生成规则：全局统一提前天数；若上一周期工单未完成，则阻止下一周期新工单生成。
 
 ## 环境变量（联调/演示）
 

@@ -35,12 +35,13 @@
             placeholder="请选择模板"
             clearable
             style="width: 180px"
+            :loading="templateLoading"
           >
             <el-option
               v-for="opt in templateOptions"
-              :key="`mt-${String(opt.value)}`"
-              :label="opt.label"
-              :value="String(opt.value)"
+              :key="`mt-${opt.id}`"
+              :label="opt.templateName"
+              :value="opt.id"
             />
           </el-select>
         </el-form-item>
@@ -68,8 +69,19 @@
     <el-card shadow="never" class="table-card">
       <div class="toolbar">
         <div class="toolbar-left">
-          <el-button type="primary">手动创建保养工单</el-button>
-          <el-button>导出</el-button>
+          <el-tooltip :disabled="!createDisabledReason" :content="createDisabledReason">
+            <span>
+              <el-button type="primary" :disabled="!!createDisabledReason" @click="createVisible = true">
+                手动创建保养工单
+              </el-button>
+            </span>
+          </el-tooltip>
+          <el-tooltip :disabled="!ruleDisabledReason" :content="ruleDisabledReason">
+            <span>
+              <el-button :disabled="!!ruleDisabledReason" @click="ruleVisible = true">规则管理</el-button>
+            </span>
+          </el-tooltip>
+          <el-button disabled>导出</el-button>
         </div>
         <div class="toolbar-right">
           <span class="toolbar-tip">共 {{ total }} 条保养工单记录</span>
@@ -86,17 +98,38 @@
         <el-table-column label="状态" min-width="120">
           <template #default="{ row }">
             <el-tag :type="getStatusTagType(row.status)">
-              {{ row.status }}
+              {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
 
         <el-table-column label="操作" fixed="right" min-width="260">
           <template #default="{ row }">
-            <el-button type="primary" link>查看</el-button>
-            <el-button v-if="row.status === '待执行'" type="warning" link>执行</el-button>
-            <el-button v-if="row.status === '执行中'" type="success" link>完成</el-button>
-            <el-button type="danger" link>关闭</el-button>
+            <el-tooltip :disabled="!viewDisabledReason(row)" :content="viewDisabledReason(row)">
+              <span>
+                <el-button type="primary" link :disabled="!!viewDisabledReason(row)" @click="openDetail(row.id)">
+                  查看
+                </el-button>
+              </span>
+            </el-tooltip>
+
+            <template v-if="getPrimaryAction(row.status)">
+              <el-tooltip
+                :disabled="!primaryActionDisabledReason(row)"
+                :content="primaryActionDisabledReason(row)"
+              >
+                <span>
+                  <el-button
+                    :type="getPrimaryAction(row.status)?.type"
+                    link
+                    :disabled="!!primaryActionDisabledReason(row)"
+                    @click="openDetail(row.id, getPrimaryAction(row.status)?.action)"
+                  >
+                    {{ getPrimaryAction(row.status)?.label }}
+                  </el-button>
+                </span>
+              </el-tooltip>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -120,56 +153,122 @@
         />
       </div>
     </el-card>
+
+    <MaintainOrderCreateDialog v-model:visible="createVisible" @success="handleCreateSuccess" />
+
+    <MaintainRuleDialog v-model:visible="ruleVisible" @success="loadData" />
+
+    <MaintainOrderDetailDialog
+      v-model:visible="detailVisible"
+      :order-id="detailOrderId"
+      :initial-action="detailInitialAction"
+      @success="loadData"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
-import { getMaintainOrderPage, type MaintainOrderItem } from '@/api/maintain'
+import MaintainOrderCreateDialog from './components/MaintainOrderCreateDialog.vue'
+import MaintainRuleDialog from './components/MaintainRuleDialog.vue'
+import MaintainOrderDetailDialog from './components/MaintainOrderDetailDialog.vue'
+import { getMaintainOrderPage, getMaintainTemplatePage, type MaintainOrderItem } from '@/api/maintain'
 import { loadDictOptions } from '@/composables/useDictOptions'
 import { MAINTAIN_STATUS_FALLBACK, MAINTAIN_TEMPLATE_FALLBACK } from '@/constants/dictFallbacks'
+import { MAINTAIN_ORDER_STATUS_OPTIONS } from '@/constants/maintain'
 import { useListFallbackRows } from '@/composables/useListFallback'
+import { useAuthStore } from '@/stores/auth'
 
 const DEFAULT_PAGE_SIZE = 10
+const FALLBACK_TEMPLATE_OPTIONS = MAINTAIN_TEMPLATE_FALLBACK.map((item, index) => ({
+  id: index + 1,
+  templateName: item.label,
+}))
+type QuickAction = 'assign' | 'execute' | 'finish' | 'close' | null
+const authStore = useAuthStore()
 
 /** 接口不可用时兜底展示，避免白屏 */
 const FALLBACK_ROWS: MaintainOrderItem[] = [
   {
     id: 1,
     maintainOrderCode: 'MO-20260328-0001',
+    equipmentId: 101,
     equipmentName: 'CNC 数控车床 #1',
+    categoryName: '数控车床',
+    templateId: 1,
     templateName: '数控车床月度保养',
     planDate: '2026-03-28',
-    assigneeName: '王维修',
-    status: '待执行',
+    plannedExecuteTime: '2026-03-29 09:00:00',
+    assigneeId: null,
+    assigneeName: null,
+    status: '待派工',
+    sourceRuleId: 1,
+    sourceRuleName: '数控车床月度规则',
   },
   {
     id: 2,
     maintainOrderCode: 'MO-20260328-0002',
+    equipmentId: 102,
     equipmentName: '加工中心 VMC850',
+    categoryName: '加工中心',
+    templateId: 2,
     templateName: '加工中心季度保养',
     planDate: '2026-03-28',
+    plannedExecuteTime: '2026-03-30 10:00:00',
+    assigneeId: 201,
     assigneeName: '刘工',
-    status: '执行中',
+    status: '待执行',
+    sourceRuleId: 2,
+    sourceRuleName: '加工中心季度规则',
   },
   {
     id: 3,
-    maintainOrderCode: 'MO-20260325-0005',
-    equipmentName: '外圆磨床 M1432B',
-    templateName: '磨床月度保养',
-    planDate: '2026-03-25',
-    assigneeName: '张强',
-    status: '已完成',
+    maintainOrderCode: 'MO-20260328-0003',
+    equipmentId: 103,
+    equipmentName: '加工中心 VMC850',
+    categoryName: '加工中心',
+    templateId: 2,
+    templateName: '加工中心季度保养',
+    planDate: '2026-03-28',
+    plannedExecuteTime: '2026-03-28 08:30:00',
+    assigneeId: 202,
+    assigneeName: '刘工',
+    status: '执行中',
+    sourceRuleId: 2,
+    sourceRuleName: '加工中心季度规则',
   },
   {
     id: 4,
+    maintainOrderCode: 'MO-20260325-0005',
+    equipmentId: 104,
+    equipmentName: '外圆磨床 M1432B',
+    categoryName: '磨床',
+    templateId: 3,
+    templateName: '磨床月度保养',
+    planDate: '2026-03-25',
+    plannedExecuteTime: '2026-03-25 09:00:00',
+    assigneeId: 203,
+    assigneeName: '张强',
+    status: '已完成',
+    sourceRuleId: 3,
+    sourceRuleName: '磨床月度规则',
+  },
+  {
+    id: 5,
     maintainOrderCode: 'MO-20260322-0003',
+    equipmentId: 105,
     equipmentName: '三坐标测量机',
+    categoryName: '检测设备',
+    templateId: 4,
     templateName: '检测设备年度校准',
     planDate: '2026-03-22',
+    plannedExecuteTime: '2026-03-22 14:00:00',
+    assigneeId: 204,
     assigneeName: '李明',
     status: '已关闭',
+    sourceRuleId: null,
+    sourceRuleName: null,
   },
 ]
 
@@ -179,12 +278,13 @@ const { shouldUseFallback, applyFallback } = useListFallbackRows({
 })
 
 const statusOptions = ref(MAINTAIN_STATUS_FALLBACK)
-const templateOptions = ref(MAINTAIN_TEMPLATE_FALLBACK)
+const templateOptions = ref(FALLBACK_TEMPLATE_OPTIONS)
+const templateLoading = ref(false)
 
 const queryForm = reactive({
   keyword: '',
   status: '',
-  template: '',
+  template: undefined as number | undefined,
   dateRange: [] as string[] | null,
   pageNum: 1,
   pageSize: DEFAULT_PAGE_SIZE,
@@ -193,22 +293,42 @@ const queryForm = reactive({
 const tableData = ref<MaintainOrderItem[]>([])
 const total = ref(0)
 const loading = ref(false)
+const createVisible = ref(false)
+const ruleVisible = ref(false)
+const detailVisible = ref(false)
+const detailOrderId = ref<number | null>(null)
+const detailInitialAction = ref<QuickAction>(null)
+
+const createDisabledReason = computed(() => authStore.getMaintainActionDisabledReason('create'))
+const ruleDisabledReason = computed(() => authStore.getMaintainActionDisabledReason('manageRules'))
 
 const loadDicts = async () => {
-  const [s, t] = await Promise.all([
-    loadDictOptions('maintain_status', MAINTAIN_STATUS_FALLBACK),
-    loadDictOptions('maintain_template', MAINTAIN_TEMPLATE_FALLBACK),
-  ])
+  const s = await loadDictOptions('maintain_status', MAINTAIN_STATUS_FALLBACK)
   statusOptions.value = s
-  templateOptions.value = t
+}
+
+const loadTemplates = async () => {
+  templateLoading.value = true
+  try {
+    const data = await getMaintainTemplatePage({ pageNum: 1, pageSize: 200, status: '启用' })
+    templateOptions.value = Array.isArray(data.list)
+      ? data.list.map((item) => ({ id: item.id, templateName: item.templateName }))
+      : []
+  } catch {
+    templateOptions.value = [...FALLBACK_TEMPLATE_OPTIONS]
+  } finally {
+    templateLoading.value = false
+  }
 }
 
 const getStatusTagType = (status: string) => {
   switch (status) {
-    case '待执行':
+    case '待派工':
       return 'warning'
-    case '执行中':
+    case '待执行':
       return 'primary'
+    case '执行中':
+      return 'danger'
     case '已完成':
       return 'success'
     case '已关闭':
@@ -216,6 +336,31 @@ const getStatusTagType = (status: string) => {
     default:
       return 'info'
   }
+}
+
+const getStatusLabel = (status: string) =>
+  MAINTAIN_ORDER_STATUS_OPTIONS.find((item) => item.value === status)?.label || status
+
+const getPrimaryAction = (status: string): { action: Exclude<QuickAction, null>; label: string; type: 'primary' | 'warning' | 'success' } | null => {
+  switch (status) {
+    case '待派工':
+      return { action: 'assign', label: '派工', type: 'primary' }
+    case '待执行':
+      return { action: 'execute', label: '执行', type: 'warning' }
+    case '执行中':
+      return { action: 'finish', label: '完成', type: 'success' }
+    default:
+      return null
+  }
+}
+
+const viewDisabledReason = (row: MaintainOrderItem) =>
+  authStore.getMaintainActionDisabledReason('view', row.status)
+
+const primaryActionDisabledReason = (row: MaintainOrderItem) => {
+  const primary = getPrimaryAction(row.status)
+  if (!primary) return ''
+  return authStore.getMaintainActionDisabledReason(primary.action, row.status)
 }
 
 const loadData = async () => {
@@ -230,7 +375,7 @@ const loadData = async () => {
       pageSize: queryForm.pageSize,
       keyword: queryForm.keyword || undefined,
       status: queryForm.status || undefined,
-      template: queryForm.template || undefined,
+      template: queryForm.template,
       startDate,
       endDate,
     })
@@ -256,7 +401,7 @@ const handleSearch = () => {
 const handleReset = () => {
   queryForm.keyword = ''
   queryForm.status = ''
-  queryForm.template = ''
+  queryForm.template = undefined
   queryForm.dateRange = []
   queryForm.pageNum = 1
   queryForm.pageSize = DEFAULT_PAGE_SIZE
@@ -272,8 +417,25 @@ const handleSizeChange = () => {
   loadData()
 }
 
+const openDetail = (orderId: number, action: QuickAction = null) => {
+  detailOrderId.value = orderId
+  detailInitialAction.value = action
+  detailVisible.value = true
+}
+
+const handleCreateSuccess = async () => {
+  queryForm.pageNum = 1
+  await loadData()
+}
+
+watch(detailVisible, (visible) => {
+  if (!visible) {
+    detailInitialAction.value = null
+  }
+})
+
 onMounted(async () => {
-  await loadDicts()
+  await Promise.all([loadDicts(), loadTemplates()])
   loadData()
 })
 </script>

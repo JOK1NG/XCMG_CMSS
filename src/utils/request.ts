@@ -5,6 +5,8 @@ import axios, {
 } from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
+import { useAuthStore } from '@/stores/auth'
+import { clearAuthSessionStorage, getTokenFromStorage } from '@/utils/authStorage'
 
 /** 后端统一响应外壳（与业务 data 区分） */
 export interface ApiResult<T = unknown> {
@@ -36,7 +38,7 @@ const service: AxiosInstance = axios.create({
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // 预留：登录后写入 token 即可自动带上
-    const token = localStorage.getItem('token')
+    const token = getTokenFromStorage()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -70,7 +72,9 @@ service.interceptors.response.use(
       const reqUrl = String(error.config?.url ?? '')
       const isLoginCall = reqUrl.includes('/auth/login')
       if (!isLoginCall) {
-        localStorage.removeItem('token')
+        const authStore = useAuthStore()
+        authStore.clearSession()
+        clearAuthSessionStorage()
         if (router.currentRoute.value.path !== '/login') {
           router
             .push({

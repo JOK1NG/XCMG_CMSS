@@ -45,6 +45,7 @@ export const SPARE_SUPPLIER_FALLBACK: DictItem[] = [
 ]
 
 export const MAINTAIN_STATUS_FALLBACK: DictItem[] = [
+  { label: '待派工', value: '待派工' },
   { label: '待执行', value: '待执行' },
   { label: '执行中', value: '执行中' },
   { label: '已完成', value: '已完成' },

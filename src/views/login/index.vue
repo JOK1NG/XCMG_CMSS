@@ -32,9 +32,11 @@ import { reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { login } from '@/api/auth'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
@@ -55,9 +57,7 @@ const handleSubmit = async () => {
   loading.value = true
   try {
     const res = await login({ username: form.username, password: form.password })
-    if (res?.token) {
-      localStorage.setItem('token', res.token)
-    }
+    authStore.setLoginResult(res)
     const redirect = (route.query.redirect as string) || '/dashboard'
     await router.replace(redirect)
   } finally {

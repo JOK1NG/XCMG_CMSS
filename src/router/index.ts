@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Layout from '@/layout/index.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -57,6 +58,9 @@ const router = createRouter({
 })
 
 router.beforeEach((to, _from, next) => {
+  const authStore = useAuthStore()
+  authStore.initFromStorage()
+
   const bypassAuth =
     import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS_AUTH === 'true'
   if (bypassAuth) {
@@ -65,14 +69,14 @@ router.beforeEach((to, _from, next) => {
   }
 
   if (to.meta.public) {
-    if (to.path === '/login' && localStorage.getItem('token')) {
+    if (to.path === '/login' && authStore.isLoggedIn) {
       next({ path: '/dashboard' })
       return
     }
     next()
     return
   }
-  if (!localStorage.getItem('token')) {
+  if (!authStore.isLoggedIn) {
     next({ path: '/login', query: { redirect: to.fullPath } })
     return
   }
