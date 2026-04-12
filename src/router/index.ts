@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Layout from '@/layout/index.vue'
 import { useAuthStore } from '@/stores/auth'
+import { ElMessage } from 'element-plus'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -50,7 +51,7 @@ const router = createRouter({
           path: 'system/user',
           name: 'SystemUser',
           component: () => import('@/views/system/user.vue'),
-          meta: { title: '用户管理' },
+          meta: { title: '用户管理', requiredRoles: ['ROLE_ADMIN', 'ROLE_MAINTAIN_MANAGER'] },
         },
       ],
     },
@@ -60,6 +61,8 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
   authStore.initFromStorage()
+  const requiredRoles = (to.meta.requiredRoles as string[] | undefined) ?? []
+  const hasAuth = authStore.canAccessRoles(requiredRoles)
 
   const bypassAuth =
     import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS_AUTH === 'true'
@@ -78,6 +81,11 @@ router.beforeEach((to, _from, next) => {
   }
   if (!authStore.isLoggedIn) {
     next({ path: '/login', query: { redirect: to.fullPath } })
+    return
+  }
+  if (!hasAuth) {
+    ElMessage.error('当前账号无权访问该页面')
+    next({ path: '/dashboard' })
     return
   }
   next()

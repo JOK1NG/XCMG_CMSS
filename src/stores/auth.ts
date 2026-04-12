@@ -172,6 +172,13 @@ export const useAuthStore = defineStore('auth', () => {
     return actionAllowedByStatus(action, normalizedStatus)
   }
 
+  const canAccessRoles = (requiredRoles?: string[]) => {
+    if (!requiredRoles || requiredRoles.length === 0) {
+      return true
+    }
+    return requiredRoles.some((role) => roleCodes.value.includes(role as RoleCode))
+  }
+
   const getMaintainActionDisabledReason = (action: MaintainAction, status?: string | number | null) => {
     if (!effectiveActions.value.includes(action)) {
       return '当前角色无权限执行该操作'
@@ -194,5 +201,6 @@ export const useAuthStore = defineStore('auth', () => {
     clearSession,
     canManageMaintainAction,
     getMaintainActionDisabledReason,
+    canAccessRoles,
   }
 })

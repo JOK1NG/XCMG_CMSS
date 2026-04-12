@@ -4,19 +4,16 @@
       <div class="logo">Factory CMMS</div>
 
       <el-menu
-          :default-active="activeMenu"
-          class="menu"
-          router
-          background-color="#001529"
-          text-color="#cfd3dc"
-          active-text-color="#409eff"
+        :default-active="activeMenu"
+        class="menu"
+        router
+        background-color="#001529"
+        text-color="#cfd3dc"
+        active-text-color="#409eff"
       >
-        <el-menu-item index="/dashboard">数据看板</el-menu-item>
-        <el-menu-item index="/equipment/list">设备台账</el-menu-item>
-        <el-menu-item index="/workorder/list">工单列表</el-menu-item>
-        <el-menu-item index="/maintain/order">保养工单</el-menu-item>
-        <el-menu-item index="/spare/list">备件管理</el-menu-item>
-        <el-menu-item index="/system/user">用户管理</el-menu-item>
+        <el-menu-item v-for="menu in menuItems" :key="menu.path" :index="menu.path">
+          {{ menu.label }}
+        </el-menu-item>
       </el-menu>
     </aside>
 
@@ -42,6 +39,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
+interface MenuItem {
+  path: string
+  label: string
+  requiredRoles?: string[]
+}
+
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -51,6 +54,22 @@ const pageTitle = computed(() => {
   return (route.meta.title as string) || '后台管理系统'
 })
 const displayName = computed(() => authStore.user?.realName || authStore.user?.username || '用户')
+const menuItems = computed<MenuItem[]>(() => {
+  const items: MenuItem[] = [
+    { path: '/dashboard', label: '数据看板' },
+    { path: '/equipment/list', label: '设备台账' },
+    { path: '/workorder/list', label: '工单列表' },
+    { path: '/maintain/order', label: '保养工单' },
+    { path: '/spare/list', label: '备件管理' },
+    {
+      path: '/system/user',
+      label: '用户管理',
+      requiredRoles: ['ROLE_ADMIN', 'ROLE_MAINTAIN_MANAGER'],
+    },
+  ]
+
+  return items.filter((item) => authStore.canAccessRoles(item.requiredRoles))
+})
 
 const handleLogout = async () => {
   try {
