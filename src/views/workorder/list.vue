@@ -68,7 +68,11 @@
       <div class="toolbar">
         <div class="toolbar-left">
           <el-button type="primary" @click="reportVisible = true">发起报修</el-button>
-          <el-button disabled>导出</el-button>
+          <el-tooltip :disabled="!exportUnavailableReason" :content="exportUnavailableReason">
+            <span>
+              <el-button disabled>导出</el-button>
+            </span>
+          </el-tooltip>
         </div>
         <div class="toolbar-right">
           <span class="toolbar-tip">共 {{ total }} 条工单记录</span>
@@ -250,6 +254,7 @@ const detailVisible = ref(false)
 const detailId = ref<number | null>(null)
 
 const reportVisible = ref(false)
+const exportUnavailableReason = '导出接口暂未对接，联调阶段暂不开放'
 
 const assignVisible = ref(false)
 const assignOrderId = ref<number | null>(null)

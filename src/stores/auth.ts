@@ -88,6 +88,10 @@ export function normalizeMaintainStatus(status: string | number | null | undefin
   }
 }
 
+/**
+ * 当前阶段仅做保养模块动作级权限控制（按钮级）；
+ * 菜单/路由级入口权限后续作为独立任务处理。
+ */
 function actionAllowedByStatus(action: MaintainAction, status: MaintainOrderStatus | null): boolean {
   if (status == null) return action === 'view' || action === 'manageRules' || action === 'create'
   switch (action) {

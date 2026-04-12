@@ -72,7 +72,11 @@
       <div class="toolbar">
         <div class="toolbar-left">
           <el-button type="primary" @click="openCreate">新增用户</el-button>
-          <el-button disabled>导出</el-button>
+          <el-tooltip :disabled="!exportUnavailableReason" :content="exportUnavailableReason">
+            <span>
+              <el-button disabled>导出</el-button>
+            </span>
+          </el-tooltip>
         </div>
         <div class="toolbar-right">
           <span class="toolbar-tip">共 {{ total }} 条用户记录</span>
@@ -225,6 +229,7 @@ const queryForm = reactive({
 const tableData = ref<UserItem[]>([])
 const total = ref(0)
 const loading = ref(false)
+const exportUnavailableReason = '导出接口暂未对接，联调阶段暂不开放'
 
 const formVisible = ref(false)
 const formMode = ref<'create' | 'edit'>('create')

@@ -146,5 +146,6 @@ HTTP **401**：前端会清理 token 并跳转 `/login`（登录接口本身的 
 
 见仓库根目录 [`.env.example`](../.env.example)。
 
-- `VITE_USE_LIST_FALLBACK`：列表/看板失败时是否填充本地示例数据。
+- `VITE_USE_LIST_FALLBACK`：列表/看板失败时是否填充本地示例数据（仅本地 `mode=development` 有效；联调/发布环境默认关闭，避免假数据混入联调）。
 - `VITE_DEV_BYPASS_AUTH`：仅开发环境，跳过登录路由守卫（无后端本地调 UI 时可开）。
+- 本轮未定义列表页导入/导出接口；相关按钮目前以“暂未开放”提示降级，不作为联调可交付项。

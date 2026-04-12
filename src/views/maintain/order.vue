@@ -81,7 +81,11 @@
               <el-button :disabled="!!ruleDisabledReason" @click="ruleVisible = true">规则管理</el-button>
             </span>
           </el-tooltip>
-          <el-button disabled>导出</el-button>
+          <el-tooltip :disabled="!exportUnavailableReason" :content="exportUnavailableReason">
+            <span>
+              <el-button disabled>导出</el-button>
+            </span>
+          </el-tooltip>
         </div>
         <div class="toolbar-right">
           <span class="toolbar-tip">共 {{ total }} 条保养工单记录</span>
@@ -301,6 +305,7 @@ const detailInitialAction = ref<QuickAction>(null)
 
 const createDisabledReason = computed(() => authStore.getMaintainActionDisabledReason('create'))
 const ruleDisabledReason = computed(() => authStore.getMaintainActionDisabledReason('manageRules'))
+const exportUnavailableReason = '导出接口暂未对接，待后端提供导出功能后上线'
 
 const loadDicts = async () => {
   const s = await loadDictOptions('maintain_status', MAINTAIN_STATUS_FALLBACK)

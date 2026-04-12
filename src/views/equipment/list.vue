@@ -72,8 +72,16 @@
       <div class="toolbar">
         <div class="toolbar-left">
           <el-button type="primary" @click="openCreate">新增设备</el-button>
-          <el-button disabled>导入</el-button>
-          <el-button disabled>导出</el-button>
+          <el-tooltip :disabled="!importUnavailableReason" :content="importUnavailableReason">
+            <span>
+              <el-button disabled>导入</el-button>
+            </span>
+          </el-tooltip>
+          <el-tooltip :disabled="!exportUnavailableReason" :content="exportUnavailableReason">
+            <span>
+              <el-button disabled>导出</el-button>
+            </span>
+          </el-tooltip>
         </div>
         <div class="toolbar-right">
           <span class="toolbar-tip">共 {{ total }} 条设备记录</span>
@@ -247,6 +255,9 @@ const formInitial = ref<EquipmentFormPayload | null>(null)
 
 const detailVisible = ref(false)
 const detailId = ref<number | null>(null)
+
+const importUnavailableReason = '导入接口暂未对接，联调阶段暂不开放'
+const exportUnavailableReason = '导出接口暂未对接，联调阶段暂不开放'
 
 const getStatusTagType = (status: string) => {
   switch (status) {

@@ -42,7 +42,11 @@
           <el-button type="primary" @click="openCreate">新增备件</el-button>
           <el-button @click="openStockFromToolbar('in')">入库</el-button>
           <el-button @click="openStockFromToolbar('out')">出库</el-button>
-          <el-button disabled>导出</el-button>
+          <el-tooltip :disabled="!exportUnavailableReason" :content="exportUnavailableReason">
+            <span>
+              <el-button disabled>导出</el-button>
+            </span>
+          </el-tooltip>
         </div>
         <div class="toolbar-right">
           <span class="toolbar-tip">共 {{ total }} 条备件记录</span>
@@ -210,6 +214,7 @@ const queryForm = reactive({
 const tableData = ref<SpareItem[]>([])
 const total = ref(0)
 const loading = ref(false)
+const exportUnavailableReason = '导出接口暂未对接，联调阶段暂不开放'
 
 const formVisible = ref(false)
 const formMode = ref<'create' | 'edit'>('create')
