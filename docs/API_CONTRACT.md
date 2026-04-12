@@ -84,6 +84,16 @@ HTTP **401**：前端会清理 token 并跳转 `/login`（登录接口本身的 
 | DELETE | `/system/user/{id}` | 删除 |
 | PUT | `/system/user/{id}/password` | 重置密码 body: `{ newPassword }` |
 
+## 系统角色
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/system/role/page` | 分页查询 |
+| GET | `/system/role/{id}` | 详情 |
+| POST | `/system/role` | 新增角色 |
+| PUT | `/system/role/{id}` | 更新角色 |
+| DELETE | `/system/role/{id}` | 删除角色 |
+
 ## 备件
 
 | 方法 | 路径 | 说明 |
@@ -95,6 +105,7 @@ HTTP **401**：前端会清理 token 并跳转 `/login`（登录接口本身的 
 | DELETE | `/spare/{id}` | 删除 |
 | PUT | `/spare/{id}/stock-in` | 入库 body: `{ qty, remark? }` |
 | PUT | `/spare/{id}/stock-out` | 出库 body: `{ qty, remark? }` |
+| GET | `/spare/stock-record/page` | 出入库流水分页查询 |
 
 ## 保养工单与规则（第二阶段）
 
@@ -126,6 +137,9 @@ HTTP **401**：前端会清理 token 并跳转 `/login`（登录接口本身的 
 |------|------|------|
 | GET | `/maintain/template/page` | 模板分页（供规则和建单选择） |
 | GET | `/maintain/template/{id}` | 模板详情（固定检查项） |
+| POST | `/maintain/template` | 新增模板 |
+| PUT | `/maintain/template/{id}` | 更新模板 |
+| DELETE | `/maintain/template/{id}` | 删除模板 |
 
 ### 附件上传
 

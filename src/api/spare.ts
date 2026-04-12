@@ -37,6 +37,34 @@ export interface SpareFormPayload {
   location: string
 }
 
+export interface SpareStockRecordItem {
+  id: number
+  spareId: number
+  spareCode: string
+  spareName: string
+  changeType: '入库' | '出库'
+  quantity: number
+  beforeQty: number
+  afterQty: number
+  operatorName: string
+  operateTime: string
+  remark: string
+}
+
+export interface SpareStockRecordPageParams {
+  pageNum: number
+  pageSize: number
+  keyword?: string
+  changeType?: '入库' | '出库'
+  startDate?: string
+  endDate?: string
+}
+
+export interface SpareStockRecordPageData {
+  list: SpareStockRecordItem[]
+  total: number
+}
+
 /** POST 时可传初始库存 */
 export type SpareCreatePayload = SpareFormPayload & { stockQty?: number }
 
@@ -75,4 +103,8 @@ export function stockInSpare(id: number, data: { qty: number; remark?: string })
 /** PUT /spare/{id}/stock-out */
 export function stockOutSpare(id: number, data: { qty: number; remark?: string }) {
   return request.put<unknown>(`/spare/${id}/stock-out`, data)
+}
+
+export function getSpareStockRecords(params: SpareStockRecordPageParams) {
+  return request.get<SpareStockRecordPageData>('/spare/stock-record/page', { params })
 }

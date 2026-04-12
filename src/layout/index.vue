@@ -94,12 +94,25 @@ const menuItems = computed<MenuItem[]>(() => {
     { path: '/equipment/list', label: '设备台账', icon: '🛠️' },
     { path: '/workorder/list', label: '工单列表', icon: '📋' },
     { path: '/maintain/order', label: '保养工单', icon: '🧰' },
+    {
+      path: '/maintain/template',
+      label: '保养模板',
+      icon: '🗒️',
+      requiredRoles: ['ROLE_ADMIN', 'ROLE_MAINTAIN_MANAGER'],
+    },
     { path: '/spare/list', label: '备件管理', icon: '📦' },
+    { path: '/spare/stock-record', label: '出入库记录', icon: '🧾' },
     {
       path: '/system/user',
       label: '用户管理',
       icon: '👤',
       requiredRoles: ['ROLE_ADMIN', 'ROLE_MAINTAIN_MANAGER'],
+    },
+    {
+      path: '/system/role',
+      label: '角色管理',
+      icon: '🛡️',
+      requiredRoles: ['ROLE_ADMIN'],
     },
   ]
 

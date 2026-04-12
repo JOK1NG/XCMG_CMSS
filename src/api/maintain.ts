@@ -191,6 +191,13 @@ export interface MaintainTemplateDetail extends MaintainTemplateItem {
   checkItems: MaintainTemplateCheckItem[]
 }
 
+export interface MaintainTemplatePayload {
+  templateCode: string
+  templateName: string
+  categoryName: string
+  status: '启用' | '停用'
+}
+
 export interface MaintainAttachmentUploadResult {
   id: number
   fileName: string
@@ -265,6 +272,18 @@ export function getMaintainTemplatePage(params: MaintainTemplatePageParams) {
 /** GET /maintain/template/{id} */
 export function getMaintainTemplateDetail(id: number) {
   return request.get<MaintainTemplateDetail>(`/maintain/template/${id}`)
+}
+
+export function createMaintainTemplate(data: MaintainTemplatePayload) {
+  return request.post<unknown>('/maintain/template', data)
+}
+
+export function updateMaintainTemplate(id: number, data: MaintainTemplatePayload) {
+  return request.put<unknown>(`/maintain/template/${id}`, data)
+}
+
+export function deleteMaintainTemplate(id: number) {
+  return request.delete<unknown>(`/maintain/template/${id}`)
 }
 
 /** POST /maintain/attachment/upload */
