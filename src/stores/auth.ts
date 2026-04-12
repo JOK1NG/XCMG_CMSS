@@ -43,7 +43,7 @@ const ROLE_ACTIONS: Record<EffectiveRole, MaintainAction[]> = {
     'close',
     'downloadAttachment',
   ],
-  ROLE_EXECUTOR: ['view', 'manageRules', 'create', 'execute', 'finish', 'downloadAttachment'],
+  ROLE_EXECUTOR: ['view', 'execute', 'finish', 'downloadAttachment'],
   ROLE_VIEWER: ['view', 'downloadAttachment'],
 }
 

@@ -351,7 +351,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import type { FormInstance, FormRules, UploadRequestOptions, UploadUserFile } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules, type UploadRequestOptions, type UploadUserFile } from 'element-plus'
 import {
   assignMaintainOrder,
   closeMaintainOrder,
@@ -719,8 +719,18 @@ const submitFinish = async () => {
   const valid = await finishFormRef.value.validate().catch(() => false)
   if (!valid) return
 
-  if (customCheckItems.value.some((item) => !item.itemName.trim())) return
-  if (spareUsages.value.some((item) => !item.spareId || item.qty <= 0)) return
+  if (customCheckItems.value.some((item) => !item.itemName.trim())) {
+    ElMessage.warning('请完善自定义检查项名称')
+    return
+  }
+  if (spareUsages.value.length === 0) {
+    ElMessage.warning('请至少填写1条耗材/备件记录')
+    return
+  }
+  if (spareUsages.value.some((item) => !item.spareId || item.qty <= 0)) {
+    ElMessage.warning('请完善耗材/备件记录，且数量需大于0')
+    return
+  }
 
   actionSubmitting.value = true
   try {
