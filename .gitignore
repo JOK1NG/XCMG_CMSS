@@ -16,11 +16,11 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+*.iml
+.cursor
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.cursor/plans/剩余页面接口化改造_e94749ae.plan.md
-docs/前端开发里程碑.md
