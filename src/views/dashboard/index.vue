@@ -2,6 +2,27 @@
   <div class="page-container">
     <PageHeader title="数据看板" description="展示设备运行、工单响应等核心运营指标" />
 
+    <el-card shadow="never" class="filter-card">
+      <el-form inline class="filter-form">
+        <el-form-item label="维修费用日期范围">
+          <el-date-picker
+            v-model="costTrendDateRange"
+            type="daterange"
+            unlink-panels
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            @change="handleTrendDateChange"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleTrendDateSearch">查询</el-button>
+          <el-button @click="handleTrendDateReset">重置</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
     <el-row :gutter="16">
       <el-col :xs="24" :sm="12" :lg="6">
         <el-card shadow="never" class="kpi-card" v-loading="loading">
@@ -58,6 +79,7 @@ import {
   getDashboardCostTrend,
   getDashboardSummary,
   getDashboardWorkOrderStatus,
+  type DashboardCostTrendParams,
   type DashboardCostTrendItem,
   type DashboardSummaryData,
   type DashboardWorkOrderStatusItem,
@@ -96,6 +118,7 @@ const loading = ref(false)
 const chartLoading = ref(false)
 const costTrendRef = ref<HTMLElement | null>(null)
 const statusDistRef = ref<HTMLElement | null>(null)
+const costTrendDateRange = ref<string[]>([])
 let costTrendChart: echarts.ECharts | null = null
 let statusDistChart: echarts.ECharts | null = null
 
@@ -149,6 +172,18 @@ const renderStatusDistChart = (rows: DashboardWorkOrderStatusItem[]) => {
   })
 }
 
+const buildCostTrendParams = (): DashboardCostTrendParams => {
+  const normalizedRange = Array.isArray(costTrendDateRange.value) ? costTrendDateRange.value : []
+  if (normalizedRange.length !== 2) {
+    return {}
+  }
+  const [startDate, endDate] = normalizedRange
+  if (!startDate || !endDate) {
+    return {}
+  }
+  return { startDate, endDate }
+}
+
 const loadSummary = async () => {
   loading.value = true
   try {
@@ -176,9 +211,10 @@ const loadSummary = async () => {
 
 const loadCharts = async () => {
   chartLoading.value = true
+  const costTrendParams = buildCostTrendParams()
   try {
     const [costTrendResult, statusResult] = await Promise.allSettled([
-      getDashboardCostTrend(),
+      getDashboardCostTrend(costTrendParams),
       getDashboardWorkOrderStatus(),
     ])
     const useFallback = shouldUseListFallback()
@@ -206,6 +242,22 @@ const loadCharts = async () => {
   } finally {
     chartLoading.value = false
   }
+}
+
+const handleTrendDateSearch = () => {
+  loadCharts()
+}
+
+const handleTrendDateReset = () => {
+  costTrendDateRange.value = []
+  loadCharts()
+}
+
+const handleTrendDateChange = () => {
+  if (!costTrendDateRange.value || costTrendDateRange.value.length < 2) {
+    return
+  }
+  loadCharts()
 }
 
 const handleResize = () => {
@@ -276,5 +328,13 @@ onBeforeUnmount(() => {
   font-size: 15px;
   font-weight: 600;
   color: #303133;
+}
+
+.filter-card {
+  border-radius: 12px;
+}
+
+.filter-form {
+  margin-bottom: -8px;
 }
 </style>
